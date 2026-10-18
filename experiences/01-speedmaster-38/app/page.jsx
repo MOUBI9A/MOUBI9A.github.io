@@ -1,0 +1,254 @@
+'use client';
+
+import { motion, useMotionValue, useSpring, useScroll, useTransform, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+const WATCH_FRONT = 'https://content.thewosgroup.com/productimage/17331381/17331381_1.jpg';
+const WATCH_BLACK = 'https://www.lepage.fr/img/c-bl/3677-2.jpg';
+const WATCH_MACRO = 'https://www.lepage.fr/49680/montre-omega-speedmaster-38-chronographe-co-axial-chronometer-automatique-cadran-noir-bracelet-acier-38-mm.jpg';
+
+const views = [
+  { id: 'front', label: 'Steel', src: WATCH_FRONT, note: 'Balanced proportions. 38 mm case. Moonwatch-inspired five-link bracelet.' },
+  { id: 'night', label: 'Night', src: WATCH_BLACK, note: 'A darker campaign view that emphasizes polished steel and the black chronograph dial.' },
+  { id: 'macro', label: 'Macro', src: WATCH_MACRO, note: 'Close focus on the rounded subdials, tachymeter scale and matte black dial architecture.' },
+];
+
+function pad(v, n = 2) { return String(v).padStart(n, '0'); }
+
+function formatTime(ms) {
+  const total = Math.max(0, ms);
+  const minutes = Math.floor(total / 60000);
+  const seconds = Math.floor((total % 60000) / 1000);
+  const centis = Math.floor((total % 1000) / 10);
+  return `${pad(minutes)}:${pad(seconds)}.${pad(centis)}`;
+}
+
+function useChronograph() {
+  const [running, setRunning] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const startRef = useRef(0);
+  const baseRef = useRef(0);
+  const rafRef = useRef(null);
+
+  useEffect(() => {
+    if (!running) return;
+    startRef.current = performance.now();
+    const loop = (now) => {
+      setElapsed(baseRef.current + (now - startRef.current));
+      rafRef.current = requestAnimationFrame(loop);
+    };
+    rafRef.current = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [running]);
+
+  const toggle = useCallback(() => {
+    setRunning(v => {
+      if (v) baseRef.current = elapsed;
+      return !v;
+    });
+  }, [elapsed]);
+
+  const reset = useCallback(() => {
+    setRunning(false);
+    baseRef.current = 0;
+    setElapsed(0);
+  }, []);
+
+  return { running, elapsed, toggle, reset };
+}
+
+function Tachymeter({ rotation, setRotation }) {
+  const dragRef = useRef(null);
+  const [dragging, setDragging] = useState(false);
+
+  const update = useCallback((clientX, clientY) => {
+    const box = dragRef.current?.getBoundingClientRect();
+    if (!box) return;
+    const cx = box.left + box.width / 2;
+    const cy = box.top + box.height / 2;
+    const angle = Math.atan2(clientY - cy, clientX - cx) * 180 / Math.PI + 90;
+    setRotation(angle);
+  }, [setRotation]);
+
+  return (
+    <div
+      className={`tachy ${dragging ? 'dragging' : ''}`}
+      ref={dragRef}
+      onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); setDragging(true); update(e.clientX, e.clientY); }}
+      onPointerMove={(e) => dragging && update(e.clientX, e.clientY)}
+      onPointerUp={() => setDragging(false)}
+      onPointerCancel={() => setDragging(false)}
+      role="slider"
+      tabIndex={0}
+      aria-label="Interactive tachymeter ring"
+      aria-valuemin={-180}
+      aria-valuemax={180}
+      aria-valuenow={Math.round(rotation)}
+      onKeyDown={(e) => {
+        if (e.key === 'ArrowRight' || e.key === 'ArrowUp') setRotation(v => v + 5);
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') setRotation(v => v - 5);
+      }}
+    >
+      <motion.svg viewBox="0 0 420 420" animate={{ rotate: rotation }} transition={{ type: 'spring', stiffness: 170, damping: 24 }}>
+        <defs>
+          <path id="ringPath" d="M210,210 m-170,0 a170,170 0 1,1 340,0 a170,170 0 1,1 -340,0" />
+        </defs>
+        <circle cx="210" cy="210" r="179" className="tachyTrack" />
+        <circle cx="210" cy="210" r="164" className="tachyInner" />
+        <text className="tachyText">
+          <textPath href="#ringPath" startOffset="3%">60 · 65 · 70 · 75 · 80 · 85 · 90 · TACHYMÈTRE · 100 · 120 · 140 · 160 · 180 · 200 · 240 · 300 · 400 · 500 ·</textPath>
+        </text>
+      </motion.svg>
+      <div className="tachyHint">drag the scale</div>
+    </div>
+  );
+}
+
+export default function Page() {
+  const reduceMotion = useReducedMotion();
+  const { scrollYProgress } = useScroll();
+  const heroScale = useTransform(scrollYProgress, [0, .28], [1, reduceMotion ? 1 : 1.12]);
+  const heroFade = useTransform(scrollYProgress, [0, .2], [1, .22]);
+  const pointerX = useMotionValue(0);
+  const pointerY = useMotionValue(0);
+  const sx = useSpring(pointerX, { stiffness: 80, damping: 18 });
+  const sy = useSpring(pointerY, { stiffness: 80, damping: 18 });
+  const inverseX = useTransform(sx, v => -v * .7);
+  const inverseY = useTransform(sy, v => -v * .7);
+  const { running, elapsed, toggle, reset } = useChronograph();
+  const [view, setView] = useState(views[0]);
+  const [rotation, setRotation] = useState(0);
+
+  useEffect(() => {
+    const key = (e) => {
+      if (['INPUT', 'TEXTAREA', 'BUTTON'].includes(document.activeElement?.tagName)) return;
+      if (e.code === 'Space') { e.preventDefault(); toggle(); }
+      if (e.key.toLowerCase() === 'r') reset();
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [toggle, reset]);
+
+  const onMove = (e) => {
+    if (reduceMotion) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    pointerX.set(((e.clientX - r.left) / r.width - .5) * 18);
+    pointerY.set(((e.clientY - r.top) / r.height - .5) * 18);
+  };
+
+  return (
+    <main>
+      <header className="nav">
+        <a href="#top" className="brand"><span>Ω</span> SPEEDMASTER 38</a>
+        <nav aria-label="Primary navigation">
+          <a href="#chronograph">Chronograph</a>
+          <a href="#calibre">Calibre</a>
+          <a href="#details">Details</a>
+        </nav>
+        <a className="navCta" href="https://press.omegawatches.com/omega-extends-the-speedmaster-38-mm-collection/" target="_blank" rel="noreferrer">Official release ↗</a>
+      </header>
+
+      <section id="top" className="hero" onPointerMove={onMove} onPointerLeave={() => { pointerX.set(0); pointerY.set(0); }}>
+        <div className="noise" aria-hidden="true" />
+        <motion.div className="orb orbA" style={{ x: sx, y: sy }} />
+        <motion.div className="orb orbB" style={{ x: inverseX, y: inverseY }} />
+        <div className="heroGrid">
+          <div className="heroCopy">
+            <p className="kicker">2026 · 38 mm · independent digital concept</p>
+            <h1>Precision<br/><em>in motion.</em></h1>
+            <p className="intro">A digital study of the updated black-dial Speedmaster 38: compact proportions, rounded counters and a cleaner Moonwatch-inspired visual language.</p>
+            <div className="heroActions">
+              <a className="primary" href="#chronograph">Run the chronograph</a>
+              <a className="ghost" href="#details">Inspect the watch</a>
+            </div>
+          </div>
+
+          <motion.div className="watchStage" style={{ scale: heroScale, opacity: heroFade, x: sx, y: sy }}>
+            <div className="halo" />
+            <img src={WATCH_BLACK} alt="OMEGA Speedmaster 38 black dial campaign view" className="heroWatch" />
+            <div className="measure m1"><span>38</span> mm</div>
+            <div className="measure m2"><span>52</span> h</div>
+            <div className="measure m3"><span>3332</span> calibre</div>
+          </motion.div>
+        </div>
+        <div className="scrollCue">Scroll to measure <span>↓</span></div>
+      </section>
+
+      <section id="chronograph" className="chronoSection sectionPad">
+        <div className="sectionHead">
+          <p className="kicker darkKicker">01 / chronograph</p>
+          <h2>Time becomes<br/><em>an interface.</em></h2>
+          <p>Start, stop and reset the digital chronograph. Keyboard: <kbd>Space</kbd> to start/stop, <kbd>R</kbd> to reset.</p>
+        </div>
+
+        <div className="chronoGrid">
+          <div className="chronoPanel">
+            <div className="chronoTop"><span>CO‑AXIAL CHRONOMETER</span><span>{running ? 'RUNNING' : 'READY'}</span></div>
+            <div className="chronoTime" aria-live="polite">{formatTime(elapsed)}</div>
+            <div className="chronoTrack">
+              <motion.div className="chronoFill" animate={{ width: `${(elapsed / 60000 * 100) % 100}%` }} transition={{ ease: 'linear', duration: .08 }} />
+            </div>
+            <div className="chronoButtons">
+              <button onClick={toggle} className="primaryBtn">{running ? 'Stop' : 'Start'}</button>
+              <button onClick={reset} className="secondaryBtn">Reset</button>
+            </div>
+            <div className="microStats"><span><b>{pad(Math.floor(elapsed / 60000))}</b> minutes</span><span><b>{pad(Math.floor((elapsed % 60000) / 1000))}</b> seconds</span><span><b>{pad(Math.floor((elapsed % 1000) / 10))}</b> centiseconds</span></div>
+          </div>
+
+          <div className="tachyPanel">
+            <Tachymeter rotation={rotation} setRotation={setRotation} />
+            <p>Rotate the tachymeter ring by dragging, swiping, or using the arrow keys while focused.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="details" className="gallery sectionPad">
+        <div className="sectionHead splitHead">
+          <div><p className="kicker">02 / visual study</p><h2>Steel.<br/><em>Black.</em><br/>Light.</h2></div>
+          <p>Three photographic views reveal different qualities of the same watch. The product remains real; the surrounding interface provides the motion and atmosphere.</p>
+        </div>
+        <div className="galleryShell">
+          <div className="viewTabs" role="tablist" aria-label="Product views">
+            {views.map(v => <button key={v.id} className={view.id === v.id ? 'active' : ''} onClick={() => setView(v)} role="tab" aria-selected={view.id === v.id}>{v.label}</button>)}
+          </div>
+          <div className={`galleryVisual ${view.id}`}>
+            <AnimatePresence mode="wait">
+              <motion.img key={view.id} src={view.src} alt={`OMEGA Speedmaster 38 ${view.label} view`} initial={{ opacity: 0, scale: .96, filter: 'blur(12px)' }} animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }} exit={{ opacity: 0, scale: 1.02, filter: 'blur(8px)' }} transition={{ duration: .55, ease: [0.22,1,0.36,1] }} />
+            </AnimatePresence>
+          </div>
+          <div className="galleryCaption"><span>{view.label}</span><p>{view.note}</p></div>
+        </div>
+      </section>
+
+      <section id="calibre" className="calibre sectionPad">
+        <div className="calibreCore" aria-hidden="true">
+          <motion.div className="gear gear1" animate={reduceMotion ? {} : { rotate: 360 }} transition={{ duration: 22, ease: 'linear', repeat: Infinity }} />
+          <motion.div className="gear gear2" animate={reduceMotion ? {} : { rotate: -360 }} transition={{ duration: 15, ease: 'linear', repeat: Infinity }} />
+          <motion.div className="gear gear3" animate={reduceMotion ? {} : { rotate: 360 }} transition={{ duration: 10, ease: 'linear', repeat: Infinity }} />
+          <div className="coreLabel">3332</div>
+        </div>
+        <div className="calibreCopy">
+          <p className="kicker">03 / calibre</p>
+          <h2>A smaller case.<br/><em>No smaller idea.</em></h2>
+          <p>The black-dial 2026 reference is the only one in the updated Speedmaster 38 family powered by OMEGA’s self-winding Co‑Axial Calibre 3332.</p>
+          <div className="specList">
+            <div><span>01</span><b>38 mm</b><p>Compact steel case proportion.</p></div>
+            <div><span>02</span><b>52 h</b><p>Power reserve stated by OMEGA.</p></div>
+            <div><span>03</span><b>5 links</b><p>Moonwatch-inspired steel bracelet architecture.</p></div>
+            <div><span>04</span><b>DON</b><p>Dot-Over-Ninety bezel detail returns.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section className="manifesto">
+        <motion.p initial={{ opacity: .2 }} whileInView={{ opacity: 1 }} viewport={{ once: true, amount: .5 }}>A chronograph should make time feel physical.</motion.p>
+      </section>
+
+      <footer>
+        <div><span>EXPERIENCE 01 / 10</span><b>Speedmaster 38 · Precision in Motion</b></div>
+        <p>Independent digital design concept. OMEGA and Speedmaster are trademarks of their respective owner. Product imagery remains property of its source owners.</p>
+        <a href="#top">Back to top ↑</a>
+      </footer>
+    </main>
+  );
+}

@@ -69,3 +69,103 @@ jobs:
             echo "Expected output directory ${{ matrix.output }} was not created" >&2
             exit 1
           fi
+
+  static-smoke:
+    name: static smoke (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linea-mini
+            path: experiences/06-linea-mini
+          - name: beosound-a9
+            path: experiences/07-beosound-a9
+          - name: rimowa-original
+            path: experiences/08-rimowa-original
+          - name: sony-a1ii
+            path: experiences/09-sony-a1ii
+          - name: garmin-fenix8pro
+            path: experiences/10-garmin-fenix8pro
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate HTML structure and accessibility basics
+        env:
+          SITE_DIR: ${{ matrix.path }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from html.parser import HTMLParser
+          from pathlib import Path
+
+          site = Path(os.environ['SITE_DIR'])
+          html_path = site / 'index.html'
+          if not html_path.exists():
+              raise SystemExit(f'Missing {html_path}')
+
+          class Audit(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.ids = []
+                  self.img_missing_alt = []
+                  self.links = 0
+                  self.buttons = 0
+                  self.scripts = []
+                  self._in_script = False
+                  self._script_parts = []
+              def handle_starttag(self, tag, attrs):
+                  attrs = dict(attrs)
+                  if 'id' in attrs:
+                      self.ids.append(attrs['id'])
+                  if tag == 'img' and 'alt' not in attrs:
+                      self.img_missing_alt.append(attrs.get('src','<unknown>'))
+                  if tag == 'a': self.links += 1
+                  if tag == 'button': self.buttons += 1
+                  if tag == 'script' and 'src' not in attrs:
+                      self._in_script = True
+                      self._script_parts = []
+              def handle_data(self, data):
+                  if self._in_script:
+                      self._script_parts.append(data)
+              def handle_endtag(self, tag):
+                  if tag == 'script' and self._in_script:
+                      self.scripts.append(''.join(self._script_parts))
+                      self._in_script = False
+
+          text = html_path.read_text(encoding='utf-8')
+          audit = Audit(); audit.feed(text)
+          dupes = sorted({x for x in audit.ids if audit.ids.count(x) > 1})
+          if dupes: raise SystemExit(f'Duplicate ids: {dupes}')
+          if audit.img_missing_alt: raise SystemExit(f'Images missing alt: {audit.img_missing_alt}')
+          if '<meta name="viewport"' not in text: raise SystemExit('Missing viewport meta')
+          if 'prefers-reduced-motion' not in text: raise SystemExit('Missing reduced-motion treatment')
+          if audit.links < 2: raise SystemExit('Expected meaningful navigation links')
+          if audit.buttons < 1: raise SystemExit('Expected at least one interactive button')
+
+          out = Path('/tmp/inline-script.js')
+          out.write_text('\n'.join(audit.scripts), encoding='utf-8')
+          print(f'{site.name}: ids={len(audit.ids)} links={audit.links} buttons={audit.buttons} scripts={len(audit.scripts)}')
+          PY
+
+      - name: Validate inline JavaScript syntax
+        run: node --check /tmp/inline-script.js
+
+      - name: Validate serverless API syntax
+        env:
+          SITE_DIR: ${{ matrix.path }}
+        run: |
+          node --check "$SITE_DIR/api/config.js"
+          node --check "$SITE_DIR/api/telemetry.js"
+
+      - name: Guard against accidental persistence claims
+        env:
+          SITE_DIR: ${{ matrix.path }}
+        run: |
+          grep -q "persisted:false" "$SITE_DIR/api/telemetry.js"
+          ! grep -R -E "(STRIPE_SECRET|SUPABASE_SERVICE|DATABASE_URL|API_KEY=)" "$SITE_DIR" --exclude='README.md'

@@ -1,4 +1,5 @@
 import './globals.css';
+import './fixes.css';
 
 export const metadata = {
   title: 'Speedmaster 38 — Precision in Motion',

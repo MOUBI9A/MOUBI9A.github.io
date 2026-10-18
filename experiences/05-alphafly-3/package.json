@@ -1,0 +1,8 @@
+{
+  "name":"experience-05-alphafly-3",
+  "version":"1.0.0",
+  "private":true,
+  "type":"module",
+  "scripts":{"dev":"astro dev --host 0.0.0.0","build":"astro build","preview":"astro preview --host 0.0.0.0","check":"astro check"},
+  "dependencies":{"astro":"7.4.0","@astrojs/check":"0.9.10","typescript":"7.0.2"}
+}

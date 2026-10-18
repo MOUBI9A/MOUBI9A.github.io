@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import './styles.css';
 
-const PRODUCT='https://www.beautyhabit.com/cdn/shop/files/42768-new-min.jpg?v=1772839109';
+const PRODUCT='https://ams.diptyqueparis.com/cdn/shop/files/diptyque-orpheon-eau-de-parfum-75ml-orphp75c-1.jpg?v=1782914078&width=1920';
 const notes={juniper:{label:'Juniper berry',a:'#2f5885',b:'#b7d5e8'},cedar:{label:'Cedar',a:'#5e2e24',b:'#d29a72'},tonka:{label:'Tonka bean',a:'#7c5067',b:'#e4b5c9'},jasmine:{label:'Jasmine',a:'#c1ad73',b:'#fff3c9'}};
 let active='juniper',intensity=.64,pulse=true;
 
 document.querySelector('#app').innerHTML=`
-<header class="nav"><a href="#top" class="brand">DIPTYQUE · ORPHÉON</a><nav><a href="#notes">Notes</a><a href="#story">Story</a><a href="#bottle">Bottle</a></nav><a class="official" href="https://us.diptyqueparis.com/en-us/products/eau-de-parfum-orpheon-orphp75c" target="_blank" rel="noreferrer">Official fragrance ↗</a></header>
+<header class="nav"><a href="#top" class="brand">DIPTYQUE · ORPHÉON</a><nav><a href="#notes">Notes</a><a href="#story">Story</a><a href="#bottle">Bottle</a></nav><a class="official" href="https://ams.diptyqueparis.com/en-ca/products/eau-de-parfum-orpheon-orphp75c" target="_blank" rel="noreferrer">Official fragrance ↗</a></header>
 <main>
 <section class="hero" id="top"><div class="heroWords"><p class="eyebrow">Paris · Saint-Germain · after midnight</p><h1>OR<br>PHÉ<br>ON</h1><p class="lead">Juniper berry. Cedar. Tonka bean. Jasmine. A liquid portrait of a legendary Parisian bar, translated into light, grain and motion.</p><a class="enter" href="#notes">Enter the night ↓</a></div><div class="bottleStage" id="bottleStage"><div class="glassHalo"></div><img src="${PRODUCT}" alt="Diptyque Orphéon Eau de Parfum bottle" id="bottleImg"/><span class="bottleTag">75 ml · Eau de parfum</span></div><div class="jazzSwitch"><span>Jazz pulse</span><button id="pulse" aria-pressed="true">ON</button></div></section>
 <section class="notes" id="notes"><div class="sectionIntro"><p class="eyebrow">01 · composition</p><h2>Four notes.<br><em>One room.</em></h2><p>Select a note to retune the atmosphere. The shader changes its colour field while the product stays untouched.</p></div><div class="noteGrid">${Object.entries(notes).map(([k,v])=>`<button class="note ${k==='juniper'?'active':''}" data-note="${k}"><i></i><span>${v.label}</span><b>${k==='juniper'?'01':k==='cedar'?'02':k==='tonka'?'03':'04'}</b></button>`).join('')}</div><div class="intensity"><label for="intensity">Sillage intensity</label><input id="intensity" type="range" min="10" max="100" value="64"><output id="intensityOut">64</output></div></section>
@@ -14,7 +14,7 @@ document.querySelector('#app').innerHTML=`
 <section class="bottle" id="bottle"><div class="bottleCopy"><p class="eyebrow">03 · bottle for life</p><h2>Glass holds<br><em>the afterimage.</em></h2><p>Made in France. Diptyque states that its iconic fragrance bottles can be refilled at selected boutiques.</p><div class="facts"><span><b>75</b> ml</span><span><b>4</b> signature notes</span><span><b>FR</b> made in France</span></div></div><div class="bottleClose"><img src="${PRODUCT}" alt="Orphéon bottle close view"><div class="refraction"></div></div></section>
 <section class="final"><p class="eyebrow">Experience 04 / 10 · WebGL / GLSL</p><h2>A fragrance<br>should leave <em>light</em><br>behind.</h2><a href="#top">Replay ↑</a></section>
 </main>
-<footer><p>Independent digital design concept. Diptyque and Orphéon are trademarks of their respective owner. The product image is a real retail photograph; no synthetic bottle geometry is used.</p><a href="https://us.diptyqueparis.com/en-us/products/eau-de-parfum-orpheon-orphp75c" target="_blank" rel="noreferrer">Diptyque product page ↗</a></footer>`;
+<footer><p>Independent digital design concept. Diptyque and Orphéon are trademarks of their respective owner. Product imagery is served from Diptyque’s official web assets; no synthetic bottle geometry is used.</p><a href="https://ams.diptyqueparis.com/en-ca/products/eau-de-parfum-orpheon-orphp75c" target="_blank" rel="noreferrer">Diptyque product page ↗</a></footer>`;
 
 const canvas=document.querySelector('#shader');const renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:false,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,1.6));
 const scene=new THREE.Scene(),camera=new THREE.OrthographicCamera(-1,1,1,-1,0,1);const geometry=new THREE.PlaneGeometry(2,2);
@@ -24,7 +24,7 @@ function resize(){const dpr=Math.min(devicePixelRatio,1.6);renderer.setPixelRati
 let t0=performance.now();function frame(now){uniforms.uTime.value=(now-t0)/1000;renderer.render(scene,camera);requestAnimationFrame(frame)}requestAnimationFrame(frame);
 addEventListener('pointermove',e=>{uniforms.uPointer.value.set(e.clientX/innerWidth,1-e.clientY/innerHeight)},{passive:true});
 
-document.querySelectorAll('.note').forEach(btn=>btn.addEventListener('click',()=>{active=btn.dataset.note;document.querySelectorAll('.note').forEach(x=>x.classList.toggle('active',x===btn));uniforms.uA.value.set(notes[active].a);uniforms.uB.value.set(notes[active].b);document.documentElement.style.setProperty('--note',notes[active].b)}));
+document.querySelectorAll('.note').forEach(btn=>btn.addEventListener('click',()=>{active=btn.dataset.note;document.querySelectorAll('.note').forEach(x=>x.classList.toggle('active',x===btn));uniforms.uA.value.set(notes[active].a);uniforms.uB.value.set(notes[active].b);document.documentElement.style.setProperty('--note',notes[active].b);fetch('/api/telemetry',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event:'note-select',note:active})}).catch(()=>{})}));
 document.querySelector('#intensity').addEventListener('input',e=>{intensity=+e.target.value/100;uniforms.uIntensity.value=intensity;document.querySelector('#intensityOut').value=e.target.value});
 document.querySelector('#pulse').addEventListener('click',e=>{pulse=!pulse;e.currentTarget.textContent=pulse?'ON':'OFF';e.currentTarget.setAttribute('aria-pressed',String(pulse));uniforms.uPulse.value=pulse?1:0});
 document.querySelector('#nightMode').addEventListener('click',e=>{document.body.classList.toggle('blueRoom');const on=document.body.classList.contains('blueRoom');e.currentTarget.setAttribute('aria-pressed',String(on));e.currentTarget.textContent=on?'Return to midnight':'Shift the room'});

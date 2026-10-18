@@ -115,7 +115,7 @@ jobs:
                   self.ids = []
                   self.img_missing_alt = []
                   self.links = 0
-                  self.buttons = 0
+                  self.interactive = 0
                   self.scripts = []
                   self._in_script = False
                   self._script_parts = []
@@ -126,7 +126,10 @@ jobs:
                   if tag == 'img' and 'alt' not in attrs:
                       self.img_missing_alt.append(attrs.get('src','<unknown>'))
                   if tag == 'a': self.links += 1
-                  if tag == 'button': self.buttons += 1
+                  if tag in {'button','input','select','textarea'}:
+                      self.interactive += 1
+                  if attrs.get('role') in {'button','slider','switch','tab'}:
+                      self.interactive += 1
                   if tag == 'script' and 'src' not in attrs:
                       self._in_script = True
                       self._script_parts = []
@@ -146,11 +149,11 @@ jobs:
           if '<meta name="viewport"' not in text: raise SystemExit('Missing viewport meta')
           if 'prefers-reduced-motion' not in text: raise SystemExit('Missing reduced-motion treatment')
           if audit.links < 2: raise SystemExit('Expected meaningful navigation links')
-          if audit.buttons < 1: raise SystemExit('Expected at least one interactive button')
+          if audit.interactive < 1: raise SystemExit('Expected at least one meaningful interactive control')
 
           out = Path('/tmp/inline-script.js')
           out.write_text('\n'.join(audit.scripts), encoding='utf-8')
-          print(f'{site.name}: ids={len(audit.ids)} links={audit.links} buttons={audit.buttons} scripts={len(audit.scripts)}')
+          print(f'{site.name}: ids={len(audit.ids)} links={audit.links} interactive={audit.interactive} scripts={len(audit.scripts)}')
           PY
 
       - name: Validate inline JavaScript syntax

@@ -1,0 +1,29 @@
+---
+import { ClientRouter } from 'astro:transitions';
+import '../styles/global.css';
+const { title='Alphafly 3 — Race Architecture', description='Independent interactive Nike Alphafly 3 product concept.' } = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <meta name="theme-color" content="#f2ff00" />
+    <meta name="description" content={description} />
+    <title>{title}</title>
+    <ClientRouter />
+  </head>
+  <body>
+    <header class="nav">
+      <a href="/" class="brand">ALPHAFLY 3 <b>RACE ARCHITECTURE</b></a>
+      <nav aria-label="Primary">
+        <a href="/#pace">Pace</a>
+        <a href="/anatomy/">Anatomy</a>
+        <a href="/#race">Race</a>
+      </nav>
+      <a class="official" href="https://www.nike.com/be/t/alphafly-3-glam-wedstrijdschoenen-voor-heren-straat-KnKE5jwD/IO9573-800" target="_blank" rel="noreferrer">Nike product ↗</a>
+    </header>
+    <slot />
+    <footer><div><span>EXPERIENCE 05 / 10</span><strong>Nike Alphafly 3 · Race Architecture</strong></div><p>Independent digital design concept. Nike and Alphafly are trademarks of their respective owner. Product imagery is served from Nike’s official media CDN.</p><a href="#top">Back to top ↑</a></footer>
+  </body>
+</html>

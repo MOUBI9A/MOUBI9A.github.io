@@ -1,0 +1,71 @@
+name: experiences-ci
+
+on:
+  pull_request:
+    paths:
+      - 'experiences/**'
+      - '.github/workflows/experiences-ci.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'experiences/**'
+      - '.github/workflows/experiences-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: speedmaster-38
+            path: experiences/01-speedmaster-38
+            output: .next
+          - name: beoplay-h100
+            path: experiences/02-beoplay-h100
+            output: dist
+          - name: taycan-turbo-gt
+            path: experiences/03-taycan-turbo-gt
+            output: dist
+          - name: orpheon
+            path: experiences/04-orpheon
+            output: dist
+          - name: alphafly-3
+            path: experiences/05-alphafly-3
+            output: dist
+
+    defaults:
+      run:
+        working-directory: ${{ matrix.path }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Production build
+        run: npm run build
+
+      - name: Report build output
+        shell: bash
+        run: |
+          if [ -d "${{ matrix.output }}" ]; then
+            echo "### ${{ matrix.name }}" >> "$GITHUB_STEP_SUMMARY"
+            echo '```text' >> "$GITHUB_STEP_SUMMARY"
+            du -sh "${{ matrix.output }}" >> "$GITHUB_STEP_SUMMARY"
+            find "${{ matrix.output }}" -type f -printf '%s %p\n' 2>/dev/null | sort -nr | head -20 >> "$GITHUB_STEP_SUMMARY" || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Expected output directory ${{ matrix.output }} was not created" >&2
+            exit 1
+          fi

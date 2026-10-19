@@ -122,7 +122,7 @@ jobs:
             node --check "$d/api/telemetry.js"
           done
           git diff --check
-      - name: Commit hardened experiences
+      - name: Commit hardened experiences to staging branch
         shell: bash
         run: |
           set -euo pipefail
@@ -134,4 +134,4 @@ jobs:
             exit 0
           fi
           git commit -m 'fix(experiences): harden assets accessibility and telemetry'
-          git push origin HEAD:main
+          git push --force origin HEAD:refs/heads/factory-hardening-output

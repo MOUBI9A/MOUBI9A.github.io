@@ -1,0 +1,116 @@
+name: factory-browser-qa-fixes
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/factory-browser-qa-fixes.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  browser-qa-fixes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply browser QA fixes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace(rel, old, new):
+              p=Path(rel)
+              text=p.read_text(encoding='utf-8')
+              if old in text:
+                  text=text.replace(old,new,1)
+              elif new not in text:
+                  raise SystemExit(f'Pattern missing in {rel}: {old[:100]}')
+              p.write_text(text,encoding='utf-8')
+
+          # 01 — remove hotlinks that fail cross-origin and keep authentic verified photo.
+          replace('experiences/01-speedmaster-38/app/page.jsx',
+                  "const WATCH_BLACK='https://www.lepage.fr/img/c-bl/3677-2.jpg';",
+                  'const WATCH_BLACK=WATCH_FRONT;')
+          replace('experiences/01-speedmaster-38/app/page.jsx',
+                  "const WATCH_MACRO='https://www.lepage.fr/49680/montre-omega-speedmaster-38-chronographe-co-axial-chronometer-automatique-cadran-noir-bracelet-acier-38-mm.jpg';",
+                  'const WATCH_MACRO=WATCH_FRONT;')
+          replace('experiences/01-speedmaster-38/app/page.jsx',
+                  'A darker campaign view that emphasizes polished steel and the black chronograph dial.',
+                  'A low-light treatment of the same verified product photograph, keeping the case and dial fully authentic.')
+          replace('experiences/01-speedmaster-38/app/page.jsx',
+                  'Close focus on the rounded subdials, tachymeter scale and matte black dial architecture.',
+                  'A closer digital crop of the verified product photograph, focused on the rounded counters and tachymeter architecture.')
+
+          # 03 — mobile intrinsic heading width was creating 48px horizontal overflow.
+          replace('experiences/03-taycan-turbo-gt/src/styles.css',
+                  'html{scroll-behavior:smooth}',
+                  'html{scroll-behavior:smooth;overflow-x:clip}')
+          replace('experiences/03-taycan-turbo-gt/src/styles.css',
+                  '.heroCopy{align-self:flex-end}.hero h1{font-size:56px}',
+                  '.heroCopy{align-self:flex-end;min-width:0;width:100%}.hero h1{font-size:clamp(44px,14vw,56px);overflow-wrap:anywhere}')
+
+          # 04 — the intentionally offset bottle art must remain visually clipped to the hero.
+          replace('experiences/04-orpheon/src/styles.css',
+                  'html{scroll-behavior:smooth}',
+                  'html{scroll-behavior:smooth;overflow-x:clip}')
+          replace('experiences/04-orpheon/src/styles.css',
+                  '.hero{min-height:100svh;',
+                  '.hero{overflow:hidden;min-height:100svh;')
+
+          # 05 — transformed product photography should never expand the root scroll width.
+          replace('experiences/05-alphafly-3/src/styles/global.css',
+                  'html{scroll-behavior:smooth}',
+                  'html{scroll-behavior:smooth;overflow-x:clip}')
+
+          # 09 — replace the current Sony image transform endpoint that returns a broken image in browsers.
+          replace('experiences/09-sony-a1ii/index.html',
+                  'https://electronics.sony.com/image/8a62d28a0d3b42d18ed0a88e3f96e17e?fmt=png-alpha&wid=1440',
+                  'https://camerawest.com/cdn/shop/files/Untitled-1_0018_ILCE-1M2_front-Large.jpg?v=1732121176&width=1920')
+
+          # Root-level clipping is defensive for the single-file experiences without changing their art direction.
+          for rel in [
+              'experiences/06-linea-mini/index.html',
+              'experiences/07-beosound-a9/index.html',
+              'experiences/08-rimowa-original/index.html',
+              'experiences/09-sony-a1ii/index.html',
+              'experiences/10-garmin-fenix8pro/index.html',
+          ]:
+              p=Path(rel); text=p.read_text(encoding='utf-8')
+              if 'overflow-x:clip' not in text:
+                  text=text.replace('scroll-behavior:smooth}', 'scroll-behavior:smooth;overflow-x:clip}', 1)
+                  p.write_text(text,encoding='utf-8')
+          PY
+
+      - name: Validate production builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          for d in experiences/01-speedmaster-38 experiences/02-beoplay-h100 experiences/03-taycan-turbo-gt experiences/04-orpheon experiences/05-alphafly-3; do
+            (cd "$d" && npm install --no-audit --no-fund >/dev/null && npm run build)
+          done
+          for d in experiences/06-linea-mini experiences/07-beosound-a9 experiences/08-rimowa-original experiences/09-sony-a1ii experiences/10-garmin-fenix8pro; do
+            node --check "$d/api/config.js"
+            node --check "$d/api/telemetry.js"
+          done
+          git diff --check
+
+      - name: Publish validated QA fix branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add experiences
+          if git diff --cached --quiet; then
+            echo 'No changes needed.'
+            exit 0
+          fi
+          git commit -m 'fix(experiences): resolve browser QA overflow and asset failures'
+          git push --force origin HEAD:refs/heads/factory-browser-qa-fixes-output

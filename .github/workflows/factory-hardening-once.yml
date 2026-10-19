@@ -1,0 +1,137 @@
+name: factory-hardening-once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/factory-hardening-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply verified experience hardening
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def patch(rel, replacements=(), append=None):
+              p=Path(rel); t=p.read_text(encoding='utf-8'); original=t
+              for old,new in replacements:
+                  if old in t:
+                      t=t.replace(old,new,1)
+                  elif new not in t:
+                      raise SystemExit(f'Expected pattern missing in {rel}: {old[:120]}')
+              if append and append not in t:
+                  t += append
+              p.write_text(t,encoding='utf-8')
+              print(rel, 'changed' if t!=original else 'already hardened')
+
+          emit="const emit=(event,details={})=>fetch('/api/telemetry',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event,...details}),keepalive:true}).catch(()=>{});"
+
+          patch('experiences/01-speedmaster-38/app/page.jsx',[
+            ("const WATCH_BLACK='https://www.lepage.fr/img/c-bl/3677-2.jpg';","const WATCH_BLACK=WATCH_FRONT;"),
+            ("const WATCH_MACRO='https://www.lepage.fr/49680/montre-omega-speedmaster-38-chronographe-co-axial-chronometer-automatique-cadran-noir-bracelet-acier-38-mm.jpg';","const WATCH_MACRO=WATCH_FRONT;"),
+            ("A darker campaign view that emphasizes polished steel and the black chronograph dial.","A low-light treatment of the same verified product photograph, keeping the case and dial fully authentic."),
+            ("Close focus on the rounded subdials, tachymeter scale and matte black dial architecture.","A closer digital crop of the verified product photograph, focused on the rounded counters and tachymeter architecture."),
+            ("const pad=(v,n=2)=>String(v).padStart(n,'0');","const pad=(v,n=2)=>String(v).padStart(n,'0');\n"+emit),
+            ("const chooseView=(next)=>setView(next);","const chooseView=(next)=>{setView(next);emit('watch-view',{view:next.id})};")
+          ])
+
+          patch('experiences/02-beoplay-h100/src/main.jsx',[
+            ("function App(){",emit+"\nfunction App(){"),
+            ("onPointerDown={()=>setQuick(true)} onPointerUp={()=>setQuick(false)} onPointerLeave={()=>setQuick(false)} onTouchStart={()=>setQuick(true)} onTouchEnd={()=>setQuick(false)}","onPointerDown={()=>{setQuick(true);emit('quick-listen')}} onPointerUp={()=>setQuick(false)} onPointerLeave={()=>setQuick(false)} onTouchStart={()=>setQuick(true)} onTouchEnd={()=>setQuick(false)} onKeyDown={e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();setQuick(true);emit('quick-listen-keyboard')}}} onKeyUp={e=>{if(e.key===' '||e.key==='Enter')setQuick(false)}}"),
+            ("<div className={`quickLayer ${quick?'on':''}`} aria-hidden=\"true\"><span>QUICK LISTEN</span></div>","<div className={`quickLayer ${quick?'on':''}`} aria-hidden=\"true\"><span>QUICK LISTEN</span></div><span className=\"srOnly\" aria-live=\"polite\">{quick?'Quick Listen active':`Selected finish ${variant.name}`}</span>"),
+            ("onChange={e=>setWorld(+e.target.value)}","onChange={e=>{setWorld(+e.target.value);emit('world-volume',{value:+e.target.value})}}"),
+            ("onClick={()=>setTracking(v=>!v)}","onClick={()=>{setTracking(v=>!v);emit('head-tracking-toggle')}}"),
+            ("onClick={()=>choose(v)}","onClick={()=>{choose(v);emit('finish-select',{finish:v.name})}}")
+          ])
+          patch('experiences/02-beoplay-h100/src/styles.css',append="\n.srOnly{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}\n")
+
+          patch('experiences/03-taycan-turbo-gt/src/main.jsx',[
+            ("https://a.storyblok.com/f/322327/1200x630/9f76bde57e/ta24q3gox0004-taycan-turbo-gt-wp-driving-small.jpg/m/1200x630/smart/filters:format(avif)","https://a.storyblok.com/f/322327/1200x630/9f76bde57e/ta24q3gox0004-taycan-turbo-gt-wp-driving-small.jpg"),
+            ("https://a.storyblok.com/f/322327/1200x1200/208830ff14/ta24q3gox0004-taycan-turbo-gt-wp-driving.jpg/m/1200x1200/smart/filters:format(avif)","https://a.storyblok.com/f/322327/1200x1200/208830ff14/ta24q3gox0004-taycan-turbo-gt-wp-driving.jpg"),
+            ("function App(){",emit+"\nfunction App(){"),
+            ("onPointerDown={()=>setAttack(true)}","onPointerDown={()=>{setAttack(true);emit('attack-engaged')}}"),
+            ("onClick={()=>setMode(x)}","onClick={()=>{setMode(x);emit('drive-environment',{mode:x})}}"),
+            ("onChange={e=>setCharge(+e.target.value)}","onChange={e=>{setCharge(+e.target.value);emit('charge-simulated',{value:+e.target.value})}}")
+          ])
+
+          patch('experiences/04-orpheon/src/main.js',[
+            ('<output id="intensityOut">64</output>','<output id="intensityOut" aria-live="polite">64</output>'),
+            ('class="note ${k===\'juniper\'?\'active\':\'\'}" data-note="${k}"','class="note ${k===\'juniper\'?\'active\':\'\'}" data-note="${k}" aria-pressed="${k===\'juniper\'?\'true\':\'false\'}"'),
+            ("document.querySelectorAll('.note').forEach(x=>x.classList.toggle('active',x===btn));","document.querySelectorAll('.note').forEach(x=>{const on=x===btn;x.classList.toggle('active',on);x.setAttribute('aria-pressed',String(on))});"),
+            ("document.querySelector('#intensityOut').value=e.target.value});","document.querySelector('#intensityOut').value=e.target.value;fetch('/api/telemetry',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event:'sillage-intensity',value:+e.target.value}),keepalive:true}).catch(()=>{})});"),
+            ("shaderController?.setPulse(pulse)});","shaderController?.setPulse(pulse);fetch('/api/telemetry',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event:'pulse-toggle',enabled:pulse}),keepalive:true}).catch(()=>{})});")
+          ])
+
+          patch('experiences/05-alphafly-3/src/pages/index.astro',[
+            ('id="paceRead"','id="paceRead" aria-live="polite"'),
+            ('id="angleCount"','id="angleCount" aria-live="polite"'),
+            ('id="distanceValue"','id="distanceValue" aria-live="polite"'),
+            ('<script is:inline define:vars={{angles}}>','<script is:inline define:vars={{angles}}>\n'+emit)
+          ])
+
+          patch('experiences/06-linea-mini/index.html',[
+            ('a{color:inherit;text-decoration:none}','a{color:inherit;text-decoration:none}a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid #e05b36;outline-offset:4px}'),
+            ('<p id="brewState">Ready. Engage the paddle when you are.</p>','<p id="brewState" aria-live="polite">Ready. Engage the paddle when you are.</p>')
+          ])
+
+          patch('experiences/07-beosound-a9/index.html',[
+            ('a{color:inherit;text-decoration:none}','a{color:inherit;text-decoration:none}a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid #f36f45;outline-offset:4px}'),
+            ('<b id="modeName">Wide field</b>','<b id="modeName" aria-live="polite">Wide field</b>'),
+            ('<div class="controls"><button data-mode="wide" class="active">Wide</button><button data-mode="focus">Focus</button><button data-mode="night">Night</button></div>','<div class="controls" role="group" aria-label="Visual acoustic field"><button data-mode="wide" class="active" aria-pressed="true">Wide</button><button data-mode="focus" aria-pressed="false">Focus</button><button data-mode="night" aria-pressed="false">Night</button></div>'),
+            ("document.querySelectorAll('[data-mode]').forEach(x=>x.classList.toggle('active',x===b));","document.querySelectorAll('[data-mode]').forEach(x=>{const on=x===b;x.classList.toggle('active',on);x.setAttribute('aria-pressed',String(on))});")
+          ])
+
+          patch('experiences/08-rimowa-original/index.html',[
+            ('https://www.rimowa.com/us/en/luggage/colour/silver/cabin/92553004.html','https://www.rimowa.com/us/en/luggage/colour/black/cabin/92553014.html'),
+            ('https://www.rimowa.com/on/demandware.static/-/Sites-rimowa-master-catalog-final/default/dw08fb99c5/images/large/92553004_1.png','https://bordergara.com/cdn/shop/products/rw-2302-0006__2_59686096-2bac-452a-a66b-e9d580b3aa21.jpg?v=1690678739'),
+            ('alt="RIMOWA Original Cabin silver aluminium suitcase"','alt="RIMOWA Original Cabin black anodized aluminium suitcase" onerror="this.hidden=true;document.getElementById(\'caseFallback\').hidden=false"'),
+            ('<div class="route">3–4 DAY TRIP / CABIN</div>','<div id="caseFallback" hidden class="route" style="left:50%;bottom:50%;transform:translate(-50%,50%);max-width:280px;text-align:center">Official RIMOWA image unavailable in this browser — product is intentionally not recreated.</div><div class="route">3–4 DAY TRIP / CABIN</div>'),
+            ('Published weight for the Original Cabin silver.','Published weight for the Original Cabin black.'),
+            ('The product image and dimensional facts come from RIMOWA’s current Original Cabin page.','The real product photograph shows the Original Cabin Black; dimensional facts and product details are verified against RIMOWA’s current Original Cabin page.')
+          ])
+
+          patch('experiences/09-sony-a1ii/index.html',[
+            ('https://electronics.sony.com/image/8a62d28a0d3b42d18ed0a88e3f96e17e?fmt=png-alpha&wid=1440','https://camerawest.com/cdn/shop/files/Untitled-1_0018_ILCE-1M2_front-Large.jpg?v=1732121176&width=1920')
+          ])
+          patch('experiences/10-garmin-fenix8pro/index.html',[
+            ('https://res.garmin.com/en/products/010-03380-00/v/cf-lg-1c1e2c87-a15a-4b11-80b2-3d2e7b52e885.png','https://res.garmin.com/en/products/010-03380-00/v/cf-lg.jpg')
+          ])
+          PY
+      - name: Validate builds and static experiences
+        shell: bash
+        run: |
+          set -euo pipefail
+          for d in experiences/01-speedmaster-38 experiences/02-beoplay-h100 experiences/03-taycan-turbo-gt experiences/04-orpheon experiences/05-alphafly-3; do
+            (cd "$d" && npm install --no-audit --no-fund >/dev/null && npm run build)
+          done
+          for d in experiences/06-linea-mini experiences/07-beosound-a9 experiences/08-rimowa-original experiences/09-sony-a1ii experiences/10-garmin-fenix8pro; do
+            node --check "$d/api/config.js"
+            node --check "$d/api/telemetry.js"
+          done
+          git diff --check
+      - name: Commit hardened experiences
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add experiences
+          if git diff --cached --quiet; then
+            echo 'No source changes needed.'
+            exit 0
+          fi
+          git commit -m 'fix(experiences): harden assets accessibility and telemetry'
+          git push origin HEAD:main

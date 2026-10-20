@@ -4,12 +4,12 @@ import { AnimatePresence, motion, useMotionValue, useReducedMotion, useScroll, u
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 const WATCH_FRONT='https://content.thewosgroup.com/productimage/17331381/17331381_1.jpg';
-const WATCH_BLACK='https://www.lepage.fr/img/c-bl/3677-2.jpg';
-const WATCH_MACRO='https://www.lepage.fr/49680/montre-omega-speedmaster-38-chronographe-co-axial-chronometer-automatique-cadran-noir-bracelet-acier-38-mm.jpg';
+const WATCH_BLACK=WATCH_FRONT;
+const WATCH_MACRO=WATCH_FRONT;
 const views=[
   {id:'front',label:'Steel',src:WATCH_FRONT,note:'Balanced proportions. 38 mm case. Moonwatch-inspired five-link bracelet.'},
-  {id:'night',label:'Night',src:WATCH_BLACK,note:'A darker campaign view that emphasizes polished steel and the black chronograph dial.'},
-  {id:'macro',label:'Macro',src:WATCH_MACRO,note:'Close focus on the rounded subdials, tachymeter scale and matte black dial architecture.'},
+  {id:'night',label:'Night',src:WATCH_BLACK,note:'A low-light treatment of the same verified product photograph, keeping the case and dial fully authentic.'},
+  {id:'macro',label:'Macro',src:WATCH_MACRO,note:'A closer digital crop of the verified product photograph, focused on the rounded counters and tachymeter architecture.'},
 ];
 const pad=(v,n=2)=>String(v).padStart(n,'0');
 const formatTime=(ms)=>`${pad(Math.floor(Math.max(0,ms)/60000))}:${pad(Math.floor((Math.max(0,ms)%60000)/1000))}.${pad(Math.floor((Math.max(0,ms)%1000)/10))}`;

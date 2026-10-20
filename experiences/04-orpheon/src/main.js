@@ -47,7 +47,14 @@ async function initShader(){
 }
 
 const loadShader=()=>void initShader().catch(()=>{});
-if('requestIdleCallback' in window){requestIdleCallback(loadShader,{timeout:700})}else{requestAnimationFrame(loadShader)}
+if(!navigator.connection?.saveData){
+  const scheduleShader=()=>{
+    if('requestIdleCallback' in window){requestIdleCallback(loadShader,{timeout:2500})}
+    else{setTimeout(loadShader,1200)}
+  };
+  if(document.readyState==='complete')scheduleShader();
+  else addEventListener('load',scheduleShader,{once:true});
+}
 
 document.querySelectorAll('.note').forEach(btn=>btn.addEventListener('click',()=>{active=btn.dataset.note;document.querySelectorAll('.note').forEach(x=>{const on=x===btn;x.classList.toggle('active',on);x.setAttribute('aria-pressed',String(on))});shaderController?.setNote(active);document.documentElement.style.setProperty('--note',notes[active].b);fetch('/api/telemetry',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event:'note-select',note:active})}).catch(()=>{})}));
 document.querySelector('#intensity').addEventListener('input',e=>{intensity=+e.target.value/100;shaderController?.setIntensity(intensity);document.querySelector('#intensityOut').value=e.target.value;fetch('/api/telemetry',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event:'sillage-intensity',value:+e.target.value}),keepalive:true}).catch(()=>{})});

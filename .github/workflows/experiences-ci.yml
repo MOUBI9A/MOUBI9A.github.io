@@ -15,29 +15,98 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: experiences-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  changes:
+    name: detect affected experiences
+    runs-on: ubuntu-latest
+    outputs:
+      build_matrix: ${{ steps.matrix.outputs.build_matrix }}
+      static_matrix: ${{ steps.matrix.outputs.static_matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build affected matrices
+        id: matrix
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+
+          build = [
+              {'name': 'speedmaster-38', 'path': 'experiences/01-speedmaster-38', 'output': '.next'},
+              {'name': 'beoplay-h100', 'path': 'experiences/02-beoplay-h100', 'output': 'dist'},
+              {'name': 'taycan-turbo-gt', 'path': 'experiences/03-taycan-turbo-gt', 'output': 'dist'},
+              {'name': 'orpheon', 'path': 'experiences/04-orpheon', 'output': 'dist'},
+              {'name': 'alphafly-3', 'path': 'experiences/05-alphafly-3', 'output': 'dist'},
+          ]
+          static = [
+              {'name': 'linea-mini', 'path': 'experiences/06-linea-mini'},
+              {'name': 'beosound-a9', 'path': 'experiences/07-beosound-a9'},
+              {'name': 'rimowa-original', 'path': 'experiences/08-rimowa-original'},
+              {'name': 'sony-a1ii', 'path': 'experiences/09-sony-a1ii'},
+              {'name': 'garmin-fenix8pro', 'path': 'experiences/10-garmin-fenix8pro'},
+          ]
+
+          event = os.environ.get('EVENT_NAME', '')
+          if event == 'pull_request':
+              base = os.environ['BASE_SHA']
+              head = os.environ['HEAD_SHA']
+          else:
+              base = os.environ.get('BEFORE_SHA', '')
+              head = os.environ['HEAD_SHA']
+
+          all_zero = bool(base) and set(base) == {'0'}
+          if not base or all_zero:
+              changed = {'experiences/', '.github/workflows/experiences-ci.yml'}
+          else:
+              out = subprocess.check_output(
+                  ['git', 'diff', '--name-only', base, head],
+                  text=True,
+              )
+              changed = {line.strip() for line in out.splitlines() if line.strip()}
+
+          workflow_changed = '.github/workflows/experiences-ci.yml' in changed
+
+          def affected(items):
+              if workflow_changed or 'experiences/' in changed:
+                  return items
+              return [
+                  item for item in items
+                  if any(path == item['path'] or path.startswith(item['path'] + '/') for path in changed)
+              ]
+
+          build_matrix = affected(build)
+          static_matrix = affected(static)
+          print('changed files:', *sorted(changed), sep='\n- ')
+          print('build matrix:', json.dumps(build_matrix))
+          print('static matrix:', json.dumps(static_matrix))
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as f:
+              f.write('build_matrix=' + json.dumps(build_matrix, separators=(',', ':')) + '\n')
+              f.write('static_matrix=' + json.dumps(static_matrix, separators=(',', ':')) + '\n')
+          PY
+
   build:
     name: build (${{ matrix.name }})
+    needs: changes
+    if: needs.changes.outputs.build_matrix != '[]'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - name: speedmaster-38
-            path: experiences/01-speedmaster-38
-            output: .next
-          - name: beoplay-h100
-            path: experiences/02-beoplay-h100
-            output: dist
-          - name: taycan-turbo-gt
-            path: experiences/03-taycan-turbo-gt
-            output: dist
-          - name: orpheon
-            path: experiences/04-orpheon
-            output: dist
-          - name: alphafly-3
-            path: experiences/05-alphafly-3
-            output: dist
+        include: ${{ fromJSON(needs.changes.outputs.build_matrix) }}
 
     defaults:
       run:
@@ -72,21 +141,13 @@ jobs:
 
   static-smoke:
     name: static smoke (${{ matrix.name }})
+    needs: changes
+    if: needs.changes.outputs.static_matrix != '[]'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - name: linea-mini
-            path: experiences/06-linea-mini
-          - name: beosound-a9
-            path: experiences/07-beosound-a9
-          - name: rimowa-original
-            path: experiences/08-rimowa-original
-          - name: sony-a1ii
-            path: experiences/09-sony-a1ii
-          - name: garmin-fenix8pro
-            path: experiences/10-garmin-fenix8pro
+        include: ${{ fromJSON(needs.changes.outputs.static_matrix) }}
 
     steps:
       - uses: actions/checkout@v4
